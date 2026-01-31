@@ -1,51 +1,39 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useCallback, useEffect, useState } from "react";
+import { PhotoboothState } from "./types/state";
+import { User } from "./types/user";
+import Welcome from "./pages/Welcome";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+const App = () => {
+  const [state, setState] = useState<PhotoboothState>({ state: "ready" });
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    if (state.state !== "results") {
+      return;
+    }
+
+    // TODO: send email
+  }, [state]);
+
+  const handleStart = useCallback((user: User) => {
+    setState({ state: "countdown", user });
+  }, []);
+
+  const renderPage = () => {
+    switch (state.state) {
+      case "ready":
+        return <Welcome onStart={handleStart} />;
+      case "countdown":
+        return <></>;
+      case "results":
+        return <></>;
+    }
+  };
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <div className="bg-linear-to-br from-purple-200 via-pink-200 to-red-200 min-h-screen w-full flex items-center justify-center p-4">
+      <main className="w-full max-w-lg mx-auto">{renderPage()}</main>
+    </div>
   );
-}
+};
 
 export default App;
