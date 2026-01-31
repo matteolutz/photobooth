@@ -1,3 +1,4 @@
+import { Photos } from "./result";
 import { User } from "./user";
 
 export type PhotoboothStateReady = {
@@ -9,13 +10,13 @@ export type PhotoboothStateCountdown = {
   user: User;
 };
 
-export type PhotoboothStateResults = {
-  state: "results";
-  results: [unknown, unknown, unknown, unknown];
+export type PhotoboothStateResult = {
+  state: "result";
+  photos: Photos;
   user: User;
 };
 
 export type PhotoboothState =
   | PhotoboothStateReady
   | PhotoboothStateCountdown
-  | PhotoboothStateResults;
+  | PhotoboothStateResult;

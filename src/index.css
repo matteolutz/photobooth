@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@import "./assets/fonts/fonts.css";
+
+@theme {
+    --color-kmg-orange: #ff6600;
+}
 
 @layer base {
     * {
@@ -12,7 +17,14 @@
         height: 100vh;
     }
 
-    body,
+    body {
+        width: 100%;
+        height: 100%;
+        font-family: "Fredoka", sans-serif;
+
+        overflow-x: hidden;
+    }
+
     #root {
         width: 100%;
         height: 100%;

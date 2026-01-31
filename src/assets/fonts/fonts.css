@@ -1,0 +1,27 @@
+@font-face {
+    font-family: Fredoka;
+    font-style: normal;
+    font-weight: 400;
+    src: url("Fredoka/Fredoka-Regular.ttf");
+}
+
+@font-face {
+    font-family: Fredoka;
+    font-style: normal;
+    font-weight: 500;
+    src: url("Fredoka/Fredoka-Medium.ttf");
+}
+
+@font-face {
+    font-family: Fredoka;
+    font-style: normal;
+    font-weight: 600;
+    src: url("Fredoka/Fredoka-SemiBold.ttf");
+}
+
+@font-face {
+    font-family: Fredoka;
+    font-style: normal;
+    font-weight: 700;
+    src: url("Fredoka/Fredoka-Bold.ttf");
+}

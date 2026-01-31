@@ -1,0 +1,44 @@
+import { FC, useEffect, useState } from "react";
+
+const Countdown: FC<{ onFinish: () => void }> = ({ onFinish }) => {
+  const [count, setCount] = useState(3);
+
+  useEffect(() => {
+    if (count <= 0) {
+      onFinish();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setCount(count - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [count, onFinish]);
+
+  return (
+    <div className="flex flex-col items-center justify-center text-center">
+      <p className="text-4xl text-gray-800 font-semibold mb-8 animate-pulse">
+        Macht Euch bereit!
+      </p>
+      <div
+        key={count}
+        className="text-9xl font-bold text-white bg-orange-500 rounded-full w-48 h-48 flex items-center justify-center shadow-2xl animate-ping-once"
+      >
+        {count > 0 ? count : "📸"}
+      </div>
+      <style>{`
+          @keyframes ping-once {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          .animate-ping-once {
+            animation: ping-once 1s ease-out;
+          }
+        `}</style>
+    </div>
+  );
+};
+
+export default Countdown;
