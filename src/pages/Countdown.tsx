@@ -1,9 +1,23 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 
-const Countdown: FC<{ onFinish: () => void }> = ({ onFinish }) => {
-  const [count, setCount] = useState(3);
+const COUNTDOWN_DURATION = 3;
+
+type NthPhotoOf = [number, number];
+
+const Countdown: FC<{ onFinish: () => void; nPhoto: NthPhotoOf }> = ({
+  onFinish,
+  nPhoto: [currentPhoto, totalPhotos],
+}) => {
+  const [count, setCount] = useState(COUNTDOWN_DURATION);
+  const prevPhoto = useRef(currentPhoto);
 
   useEffect(() => {
+    if (prevPhoto.current !== currentPhoto) {
+      setCount(COUNTDOWN_DURATION);
+      prevPhoto.current = currentPhoto;
+      return;
+    }
+
     if (count <= 0) {
       onFinish();
       return;
@@ -14,12 +28,13 @@ const Countdown: FC<{ onFinish: () => void }> = ({ onFinish }) => {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [count, onFinish]);
+  }, [count, onFinish, currentPhoto]);
 
   return (
     <div className="flex flex-col items-center justify-center text-center">
       <p className="text-4xl text-gray-800 font-semibold mb-8 animate-pulse">
-        Macht Euch bereit!
+        {/*Macht Euch bereit!*/}
+        Foto {currentPhoto} von {totalPhotos}
       </p>
       <div
         key={count}

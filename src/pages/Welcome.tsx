@@ -54,8 +54,9 @@ const Welcome: FC<{ onStart: (user: User) => void }> = ({ onStart }) => {
         </button>
       </form>
       <p className="mt-6 text-xs text-gray-500">
-        Wir senden deinen Foto-Strip an diese E-Mail Adresse. Deine E-Mail
-        Adresse wird nicht gespeichert.
+        Wir senden deinen Foto-Strip an diese E-Mail Adresse. Bitte checke auch
+        deinen Spam- oder Junk-Ordner. Deine E-Mail Adresse wird nicht
+        gespeichert.
       </p>
     </div>
   );

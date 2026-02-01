@@ -8,6 +8,8 @@ export type PhotoboothStateReady = {
 export type PhotoboothStateCountdown = {
   state: "countdown";
   user: User;
+
+  photos: Photos[0][];
 };
 
 export type PhotoboothStateResult = {

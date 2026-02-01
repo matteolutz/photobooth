@@ -1,4 +1,4 @@
-import { FC, useEffect } from "react";
+import { FC, useEffect, useState } from "react";
 import { PhotoboothResult } from "../../types/result";
 import PhotoStrip from "./PhotoStrip";
 import * as htmlToImage from "html-to-image";
@@ -8,6 +8,8 @@ const Result: FC<{ result: PhotoboothResult; onReset: () => void }> = ({
   result,
   onReset,
 }) => {
+  const [canRestart, setCanRestart] = useState(false);
+
   useEffect(() => {
     const timeout = setTimeout(() => onReset(), 60_000);
     return () => clearTimeout(timeout);
@@ -22,9 +24,11 @@ const Result: FC<{ result: PhotoboothResult; onReset: () => void }> = ({
 
         return invoke("send_mail", {
           mailAddress: result.user.email,
-          image: bytes,
+          photos: result.photos,
+          stripImage: bytes,
         });
-      });
+      })
+      .then(() => setCanRestart(true));
   };
 
   return (
@@ -45,10 +49,11 @@ const Result: FC<{ result: PhotoboothResult; onReset: () => void }> = ({
       </div>
 
       <button
+        disabled={!canRestart}
         onClick={onReset}
-        className="w-full max-w-xs mx-auto flex justify-center py-3 px-6 border border-transparent rounded-full shadow-lg text-lg font-bold text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-4 focus:ring-orange-400 transform hover:-translate-y-1 transition-all duration-300"
+        className="w-full max-w-xs mx-auto flex justify-center py-3 px-6 border border-transparent rounded-full shadow-lg text-lg font-bold text-white bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-orange-400 transform hover:-translate-y-1 transition-all duration-300"
       >
-        Neu starten
+        {canRestart ? "Neu starten" : "Fotos werden gesendet..."}
       </button>
     </div>
   );

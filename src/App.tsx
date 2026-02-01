@@ -4,45 +4,44 @@ import { User } from "./types/user";
 import Welcome from "./pages/Welcome";
 import Countdown from "./pages/Countdown";
 import Result from "./pages/Rseult";
-import { Photos, resultFromState } from "./types/result";
+import { allPhotosTaken, resultFromState } from "./types/result";
 
-import test1 from "./assets/test/1.jpg";
-import test2 from "./assets/test/2.jpg";
-import test3 from "./assets/test/3.jpg";
-import test4 from "./assets/test/4.jpg";
+import { invoke } from "@tauri-apps/api/core";
 
 const App = () => {
   const [state, setState] = useState<PhotoboothState>({ state: "ready" });
 
-  useEffect(() => {
-    if (state.state !== "result") {
-      return;
-    }
-
-    // TODO: send email
-  }, [state]);
-
   const handleStart = useCallback(
     (user: User) => {
       if (state.state !== "ready") return;
-      setState({ state: "countdown", user });
+      setState({ state: "countdown", user, photos: [] });
     },
     [state],
   );
 
-  const handleCountdownFinish = useCallback(() => {
+  const handleCountdownFinish = useCallback(async () => {
     if (state.state !== "countdown") return;
 
-    // TODO: take photos
+    const takePhoto = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return invoke("take_photo").then((res) => res as string);
+    };
 
-    /*
-    const testPhotos = Array.from(
-      { length: 4 },
-      (_, i) => `https://picsum.photos/400/400?random=${Date.now() + i}`,
-      );*/
-    const testPhotos = [test1, test2, test3, test4];
+    const photo = await takePhoto();
 
-    setState({ ...state, state: "result", photos: testPhotos as Photos });
+    const newPhotos = [...state.photos, photo];
+
+    if (allPhotosTaken(newPhotos)) {
+      // we have taken all photos
+      setState({ ...state, state: "result", photos: newPhotos });
+    } else {
+      // we have to take another photo
+      setState({
+        ...state,
+        state: "countdown",
+        photos: newPhotos,
+      });
+    }
   }, [state]);
 
   const onReset = useCallback(() => setState({ state: "ready" }), []);
@@ -52,7 +51,12 @@ const App = () => {
       case "ready":
         return <Welcome onStart={handleStart} />;
       case "countdown":
-        return <Countdown onFinish={handleCountdownFinish} />;
+        return (
+          <Countdown
+            nPhoto={[state.photos.length + 1, 4]}
+            onFinish={handleCountdownFinish}
+          />
+        );
       case "result":
         return <Result result={resultFromState(state)} onReset={onReset} />;
     }
