@@ -15,6 +15,12 @@ pub fn run() {
     );
 
     tauri::Builder::default()
+        .on_window_event(|_, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+            }
+            _ => {}
+        })
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
 
