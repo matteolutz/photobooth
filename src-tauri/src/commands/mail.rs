@@ -23,6 +23,9 @@ pub async fn send_mail(mail_address: String, photos: Vec<String>, strip_image: V
     let own_mail_address = std::env::var("MAIL_ADDRESS").unwrap();
     let own_mail_password = std::env::var("MAIL_PASSWORD").unwrap();
 
+    let smtp_host = std::env::var("MAIL_SMTP_HOST").unwrap();
+    let smtp_port = std::env::var("MAIL_SMTP_PORT").unwrap().parse().unwrap();
+
     let mut message = MessageBuilder::new()
         .from(("KMG Fotobox", own_mail_address.as_str()))
         .to(mail_address)
@@ -48,7 +51,7 @@ pub async fn send_mail(mail_address: String, photos: Vec<String>, strip_image: V
 
     println!("Sending message");
 
-    SmtpClientBuilder::new("smtp.strato.de", 465)
+    SmtpClientBuilder::new(smtp_host.as_str(), smtp_port)
         .implicit_tls(true)
         .credentials((own_mail_address.as_str(), own_mail_password.as_str()))
         .connect()
