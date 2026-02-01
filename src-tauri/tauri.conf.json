@@ -14,7 +14,11 @@
       {
         "title": "photobooth",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "fullscreen": true,
+        "alwaysOnTop": false,
+        "maximized": false,
+        "decorations": false
       }
     ],
     "security": {
