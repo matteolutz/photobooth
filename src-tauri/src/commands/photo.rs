@@ -1,10 +1,14 @@
-use crate::{camera::TakePictureRequest, COMM};
+use tauri::async_runtime::channel;
+
+use crate::CAMERA;
 
 #[tauri::command]
 pub async fn take_photo() -> Result<String, String> {
-    let result = COMM.get().unwrap().send(TakePictureRequest).await?;
+    let (tx, mut rx) = channel(1);
 
-    println!("got result: {:?}", result);
+    let _ = CAMERA.lock().await.as_ref().unwrap().take_picture(tx);
+
+    let result = rx.recv().await.expect("Channel has hung up");
 
     result
 }

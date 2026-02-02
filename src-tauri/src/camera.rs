@@ -1,59 +1,61 @@
 use std::{
     ffi::CString,
     ptr::null_mut,
-    sync::{mpsc, Mutex, OnceLock},
+    sync::{LazyLock, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
+use chrono::{DateTime, Local};
 use edsdk::{
-    EdsBaseRef, EdsCameraListRef, EdsCameraRef, EdsCapacity, EdsCreateFileStream, EdsDeviceInfo,
-    EdsDirectoryItemInfo, EdsDirectoryItemRef, EdsDownload, EdsDownloadComplete, EdsError,
-    EdsGetCameraList, EdsGetChildAtIndex, EdsGetChildCount, EdsGetDeviceInfo,
+    EdsBaseRef, EdsCameraListRef, EdsCameraRef, EdsCapacity, EdsCloseSession, EdsCreateFileStream,
+    EdsDeviceInfo, EdsDirectoryItemInfo, EdsDirectoryItemRef, EdsDownload, EdsDownloadComplete,
+    EdsError, EdsGetCameraList, EdsGetChildAtIndex, EdsGetChildCount, EdsGetDeviceInfo,
     EdsGetDirectoryItemInfo, EdsGetEvent, EdsImageQuality, EdsInitializeSDK, EdsObjectEvent,
     EdsOpenSession, EdsRelease, EdsSaveTo, EdsSendCommand, EdsSetCapacity,
-    EdsSetObjectEventHandler, EdsSetPropertyData, EdsStreamRef, EdsVoid,
+    EdsSetObjectEventHandler, EdsSetPropertyData, EdsStreamRef, EdsTerminateSDK, EdsVoid,
 };
+use tauri::async_runtime::Sender;
 
-use crate::comm::{
-    CommRequest, CommRequestEnvelope, CommRequestHandler, CommRequestHandlerContext,
-};
 use crate::path::CAMERA_PHOTO_DIR;
 
-pub struct TakePictureRequest;
-impl CommRequest for TakePictureRequest {
-    /// Ok -> name of file in the CAMERA dir
-    /// Err -> error message
-    type Response = Result<String, String>;
-}
-
 /// Global channel to receive the filename from the callback
-static PHOTO_RESULT_SENDER: OnceLock<Mutex<Option<mpsc::Sender<Result<String, String>>>>> =
-    OnceLock::new();
+static PHOTO_RESULT_SENDER: LazyLock<Mutex<Option<Sender<Result<String, String>>>>> =
+    LazyLock::new(|| Mutex::new(None));
 
-fn init_photo_result_channel() -> mpsc::Receiver<Result<String, String>> {
-    let (tx, rx) = mpsc::channel();
-    let _ = PHOTO_RESULT_SENDER.set(Mutex::new(Some(tx)));
-    rx
-}
+pub struct CameraRef(EdsCameraRef);
 
-fn reset_photo_result_sender(tx: mpsc::Sender<Result<String, String>>) {
-    if let Some(lock) = PHOTO_RESULT_SENDER.get() {
-        if let Ok(mut guard) = lock.lock() {
-            *guard = Some(tx);
-        }
+impl From<EdsCameraRef> for CameraRef {
+    fn from(camera: EdsCameraRef) -> Self {
+        Self(camera)
     }
 }
 
-fn send_photo_result(result: Result<String, String>) {
-    if let Some(lock) = PHOTO_RESULT_SENDER.get() {
-        if let Ok(mut guard) = lock.lock() {
-            if let Some(sender) = guard.take() {
-                let _ = sender.send(result);
-            }
-        }
+impl CameraRef {
+    pub fn init() -> Option<Self> {
+        unsafe { initialize_edsdk() }
+    }
+
+    pub fn take_picture(&self, respond_to: Sender<Result<String, String>>) {
+        let camera = self.0;
+
+        *PHOTO_RESULT_SENDER.lock().unwrap() = Some(respond_to);
+
+        let err = unsafe { EdsSendCommand(camera, 4, 3) }; // 4 = shutter command, 3 = shutter completely
+        unsafe { EdsSendCommand(camera, 4, 0) }; // 0 = shutter off
+        assert!(err.is_ok());
     }
 }
+
+impl Drop for CameraRef {
+    fn drop(&mut self) {
+        unsafe { EdsCloseSession(self.0) };
+        unsafe { EdsTerminateSDK() };
+    }
+}
+
+unsafe impl Send for CameraRef {}
+unsafe impl Sync for CameraRef {}
 
 #[no_mangle]
 extern "C" fn event_handler(
@@ -65,6 +67,10 @@ extern "C" fn event_handler(
     match event {
         // DirItemCreated | DirItemRequestTransfer
         0x204 | 0x208 => {
+            let Some(sender) = PHOTO_RESULT_SENDER.lock().unwrap().take() else {
+                return EdsError::Ok;
+            };
+
             println!("received DirItemCreated/DirItemRequestTransfer event");
             let directory_item = in_ref as EdsDirectoryItemRef;
 
@@ -72,18 +78,20 @@ extern "C" fn event_handler(
             let mut dir_item_info = EdsDirectoryItemInfo::default();
             let err = unsafe { EdsGetDirectoryItemInfo(directory_item, &mut dir_item_info) };
             if !err.is_ok() {
-                send_photo_result(Err(format!("Failed to get directory info: {:?}", err)));
+                sender
+                    .blocking_send(Err(format!("Failed to get directory info: {:?}", err)))
+                    .unwrap();
                 return err;
             }
-
-            let file_name = dir_item_info.sz_file_name().to_string();
-            println!("got info: {:?}", dir_item_info);
-            println!("file name: {}", file_name);
 
             // Get the camera photo directory and create the full path
             let camera_dir = CAMERA_PHOTO_DIR
                 .get()
                 .expect("CAMERA_PHOTO_DIR not initialized");
+
+            let now: DateTime<Local> = SystemTime::now().into();
+            let file_name = format!("{}.jpeg", now.format("%d-%m-%Y %H-%M-%S"));
+
             let full_path = camera_dir.join(&file_name);
             let full_path_str = full_path.to_string_lossy().to_string();
 
@@ -92,7 +100,9 @@ extern "C" fn event_handler(
             let c_path = match CString::new(full_path_str.clone()) {
                 Ok(p) => p,
                 Err(e) => {
-                    send_photo_result(Err(format!("Invalid path string: {}", e)));
+                    sender
+                        .blocking_send(Err(format!("Invalid path string: {}", e)))
+                        .unwrap();
                     return EdsError::Ok;
                 }
             };
@@ -106,40 +116,48 @@ extern "C" fn event_handler(
                 )
             };
             if !err.is_ok() {
-                send_photo_result(Err(format!("Failed to create file stream: {:?}", err)));
+                sender
+                    .blocking_send(Err(format!("Failed to create file stream: {:?}", err)))
+                    .unwrap();
                 return err;
             }
 
             let err = unsafe { EdsDownload(directory_item, dir_item_info.size, stream) };
             if !err.is_ok() {
                 unsafe { EdsRelease(stream) };
-                send_photo_result(Err(format!("Failed to download: {:?}", err)));
+                sender
+                    .blocking_send(Err(format!("Failed to download: {:?}", err)))
+                    .unwrap();
                 return err;
             }
 
             let err = unsafe { EdsDownloadComplete(directory_item) };
             if !err.is_ok() {
                 unsafe { EdsRelease(stream) };
-                send_photo_result(Err(format!("Failed to complete download: {:?}", err)));
+                sender
+                    .blocking_send(Err(format!("Failed to complete download: {:?}", err)))
+                    .unwrap();
                 return err;
             }
 
             let err = unsafe { EdsRelease(stream) };
             if !err.is_ok() {
-                send_photo_result(Err(format!("Failed to release stream: {:?}", err)));
+                sender
+                    .blocking_send(Err(format!("Failed to release stream: {:?}", err)))
+                    .unwrap();
                 return err;
             }
 
             println!("Photo saved successfully: {}", file_name);
-            send_photo_result(Ok(file_name));
-        }
-        _ => {}
-    }
+            sender.blocking_send(Ok(file_name)).unwrap();
 
-    EdsError::Ok
+            EdsError::Ok
+        }
+        _ => EdsError::Ok,
+    }
 }
 
-unsafe fn initialize_edsdk() -> Option<EdsCameraRef> {
+unsafe fn initialize_edsdk() -> Option<CameraRef> {
     let err = unsafe { EdsInitializeSDK() };
     assert!(err.is_ok());
 
@@ -216,74 +234,11 @@ unsafe fn initialize_edsdk() -> Option<EdsCameraRef> {
     };
     assert!(err.is_ok());
 
-    Some(camera)
+    Some(camera.into())
 }
 
-pub fn start_camera_thread(rx: mpsc::Receiver<CommRequestEnvelope>) {
-    let mut handler = CommRequestHandler::new(rx);
-
-    let camera = unsafe { initialize_edsdk().unwrap() };
-
-    // Initialize the global photo result sender storage
-    // Note: We don't keep the initial receiver since each photo request creates its own channel
-    let _ = init_photo_result_channel();
-
-    // Note: Photo requests are serialized by the CommRequestHandler (single-threaded),
-    // so we don't need to worry about race conditions between concurrent requests.
-    // Each request creates its own channel before sending the TakePicture command.
-    handler.register(move |_: TakePictureRequest, _| {
-        println!("Taking picture...");
-
-        // Create a new channel for this specific photo request
-        let (tx, rx) = mpsc::channel();
-        reset_photo_result_sender(tx);
-
-        // Send the take picture command to the camera
-        // kEdsCameraCommand_TakePicture = 0x00000000
-        let err = unsafe { EdsSendCommand(camera, 0x00000000, 0) };
-        if !err.is_ok() {
-            return Err(format!("Failed to send take picture command: {:?}", err));
-        }
-
-        println!("Take picture command sent, waiting for result...");
-
-        // Wait for the callback to send us the result
-        // The callback will be triggered by EdsGetEvent in the main loop
-        // We need to poll EdsGetEvent while waiting since the EDSDK requires polling
-        let timeout = Duration::from_secs(30);
-        let start = std::time::Instant::now();
-
-        loop {
-            // Process pending events - EDSDK requires continuous polling
-            let err = unsafe { EdsGetEvent() };
-            if !err.is_ok() {
-                return Err(format!("Failed to get event: {:?}", err));
-            }
-
-            // Check if we got a result from the callback
-            match rx.try_recv() {
-                Ok(result) => {
-                    println!("Received photo result: {:?}", result);
-                    return result;
-                }
-                Err(mpsc::TryRecvError::Empty) => {
-                    // Continue waiting
-                    if start.elapsed() > timeout {
-                        return Err("Timeout waiting for photo".to_string());
-                    }
-                    // Poll at 100ms intervals - EDSDK requires periodic event polling
-                    thread::sleep(Duration::from_millis(100));
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    return Err("Photo result channel disconnected".to_string());
-                }
-            }
-        }
-    });
-
+pub fn camera_event_thread() {
     loop {
-        handler.handle_all(CommRequestHandlerContext {});
-
         let err = unsafe { EdsGetEvent() };
         assert!(err.is_ok());
 

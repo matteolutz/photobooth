@@ -1,15 +1,17 @@
-use std::sync::{mpsc, OnceLock};
+use std::sync::LazyLock;
 
-use tauri::Manager;
+use tauri::{async_runtime::Mutex, Manager};
 
-use crate::{camera::start_camera_thread, comm::CommRequestDispatcher, path::init_dirs};
+use crate::{
+    camera::{camera_event_thread, CameraRef},
+    path::init_dirs,
+};
 
 mod camera;
-mod comm;
 mod commands;
 mod path;
 
-pub static COMM: OnceLock<CommRequestDispatcher> = OnceLock::new();
+pub static CAMERA: LazyLock<Mutex<Option<CameraRef>>> = LazyLock::new(|| Mutex::new(None));
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,12 +22,15 @@ pub fn run() {
         std::env::var("MAIL_ADDRESS").unwrap()
     );
 
-    let (tx, rx) = mpsc::channel();
+    CameraRef::init()
+        .and_then(|cam| {
+            let mut global_cam = CAMERA.try_lock().expect("Failed to lock");
+            *global_cam = Some(cam);
+            Some(())
+        })
+        .expect("Failed to initialize EDSDK");
 
-    let dispatcher = CommRequestDispatcher::new(tx);
-    let _ = COMM.set(dispatcher);
-
-    tauri::async_runtime::spawn_blocking(|| start_camera_thread(rx));
+    tauri::async_runtime::spawn_blocking(camera_event_thread);
 
     tauri::Builder::default()
         .on_window_event(|_, event| match event {
@@ -46,6 +51,13 @@ pub fn run() {
             commands::send_mail,
             commands::take_photo
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_, event| match event {
+            tauri::RunEvent::Exit => {
+                println!("Exiting, dropping camera");
+                let _ = CAMERA.blocking_lock().take();
+            }
+            _ => {}
+        });
 }
