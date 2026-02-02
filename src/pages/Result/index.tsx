@@ -1,8 +1,8 @@
 import { FC, useEffect, useState } from "react";
 import { PhotoboothResult } from "../../types/result";
 import PhotoStrip from "./PhotoStrip";
-import * as htmlToImage from "html-to-image";
 import { invoke } from "@tauri-apps/api/core";
+import { domToBlob } from "modern-screenshot";
 
 const Result: FC<{ result: PhotoboothResult; onReset: () => void }> = ({
   result,
@@ -16,8 +16,7 @@ const Result: FC<{ result: PhotoboothResult; onReset: () => void }> = ({
   }, []);
 
   const onImagesLoaded = () => {
-    htmlToImage
-      .toBlob(document.getElementById("photo-strip")!, { pixelRatio: 4 })
+      domToBlob(document.getElementById("photo-strip")!, { scale: 4 })
       .then(async (blob) => {
         const arrayBuffer = await blob?.arrayBuffer();
         const bytes = Array.from(new Uint8Array(arrayBuffer!));

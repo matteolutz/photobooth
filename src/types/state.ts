@@ -18,7 +18,12 @@ export type PhotoboothStateResult = {
   user: User;
 };
 
+export type PhotoboothStateTest = {
+  state: "test"
+}
+
 export type PhotoboothState =
   | PhotoboothStateReady
   | PhotoboothStateCountdown
-  | PhotoboothStateResult;
+  | PhotoboothStateResult
+  | PhotoboothStateTest;

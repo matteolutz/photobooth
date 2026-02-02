@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { PhotoboothState } from "./types/state";
 import { User } from "./types/user";
 import Welcome from "./pages/Welcome";
 import Countdown from "./pages/Countdown";
-import Result from "./pages/Rseult";
+import Result from "./pages/Result";
 import { allPhotosTaken, resultFromState } from "./types/result";
 
 import { invoke } from "@tauri-apps/api/core";
+import Test from "./pages/Test";
 
 const App = () => {
   const [state, setState] = useState<PhotoboothState>({ state: "ready" });
@@ -59,6 +60,8 @@ const App = () => {
         );
       case "result":
         return <Result result={resultFromState(state)} onReset={onReset} />;
+      case "test":
+        return <Test />;
     }
   };
 
