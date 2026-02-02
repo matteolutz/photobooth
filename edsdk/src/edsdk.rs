@@ -2,14 +2,22 @@
 use std::ffi::CStr;
 
 #[repr(u32)]
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum EdsError {
     Ok = 0,
 }
 
 impl EdsError {
-    pub fn is_ok(self) -> bool {
-        self == EdsError::Ok
+    pub fn is_ok(&self) -> bool {
+        *self == EdsError::Ok
+    }
+
+    pub fn res(self) -> Result<(), EdsError> {
+        if self.is_ok() {
+            Ok(())
+        } else {
+            Err(self)
+        }
     }
 }
 
