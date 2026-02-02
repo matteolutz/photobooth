@@ -1,12 +1,13 @@
 import { FC, useCallback, useEffect, useRef, useState } from "react";
-import { PhotoboothResult } from "../../types/result";
+import { OptionalPhotos } from "../../types/result";
 
 import kmgLogo from "../../assets/images/kmg.png";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import AnimationTarget from "../../animation/target";
 
 type PhotoStripProps = {
-  photos: PhotoboothResult["photos"];
+  photos: OptionalPhotos;
   onImagesLoaded?: (container: HTMLDivElement) => void;
 };
 
@@ -14,7 +15,7 @@ const PhotoStrip: FC<PhotoStripProps> = ({ photos, onImagesLoaded }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedImages, setLoadedImages] = useState<number>(0);
 
-  const [photoSrc, setPhotoSrc] = useState<string[] | null>(null);
+  const [photoSrc, setPhotoSrc] = useState<(string | null)[] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -22,6 +23,7 @@ const PhotoStrip: FC<PhotoStripProps> = ({ photos, onImagesLoaded }) => {
 
       const photoSrc = await Promise.all(
         photos.map(async (photo) => {
+          if (photo === null) return null;
           const photoPath = await join(appData, "camera", photo);
           return convertFileSrc(photoPath);
         }),
@@ -52,12 +54,18 @@ const PhotoStrip: FC<PhotoStripProps> = ({ photos, onImagesLoaded }) => {
         {photoSrc != null &&
           photoSrc.map((photo, index) => (
             <div key={index} className="bg-white p-1 w-full">
-              <img
-                onLoad={onImageLoad}
-                src={photo}
-                alt={`Photo ${index + 1}`}
-                className="photo-strip-img w-full h-auto object-cover"
-              />
+              {photo !== null ? (
+                <img
+                  onLoad={onImageLoad}
+                  src={photo}
+                  alt={`Photo ${index + 1}`}
+                  className="photo-strip-img w-full h-auto object-cover"
+                />
+              ) : (
+                <div className="w-full aspect-square">
+                  <AnimationTarget animationId={`photostrip-${index}`} />
+                </div>
+              )}
             </div>
           ))}
         <div className="flex flex-col items-center py-2">

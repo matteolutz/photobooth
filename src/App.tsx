@@ -68,6 +68,9 @@ const App = () => {
   return (
     <div className="bg-linear-to-br from-purple-200 via-pink-200 to-red-200 min-h-screen w-full flex items-center justify-center p-4">
       <main className="w-full max-w-lg mx-auto">{renderPage()}</main>
+      <div className="absolute bottom-0 w-full flex justify-end gap-2 p-2 text-gray-500 text-sm">
+        &copy; {new Date().getFullYear()} Matteo Lutz
+      </div>
     </div>
   );
 };
