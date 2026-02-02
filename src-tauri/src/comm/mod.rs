@@ -1,12 +1,10 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    sync::mpsc,
+    sync::mpsc::{self, Receiver},
 };
 
-use std::sync::mpsc::{Receiver, Sender};
-
-use tauri::async_runtime::JoinHandle;
+use tokio::sync::oneshot;
 
 pub trait CommRequest: Send + 'static {
     type Response: Send + 'static;
@@ -15,23 +13,25 @@ pub trait CommRequest: Send + 'static {
 pub struct CommRequestEnvelope {
     type_id: TypeId,
     payload: Box<dyn Any + Send>,
-    responder: Sender<Box<dyn Any + Send>>,
+    responder: oneshot::Sender<Box<dyn Any + Send>>,
 }
 
 pub struct CommRequestDispatcher {
-    tx: Sender<CommRequestEnvelope>,
+    tx: mpsc::Sender<CommRequestEnvelope>,
 }
 
 impl CommRequestDispatcher {
-    pub fn new(tx: Sender<CommRequestEnvelope>) -> Self {
+    pub fn new(tx: mpsc::Sender<CommRequestEnvelope>) -> Self {
         Self { tx }
     }
 
-    fn _send<R>(&self, req: R) -> Receiver<Box<dyn Any + Send + 'static>>
+    /// Sends a request and returns a future that resolves to the response.
+    /// This integrates with Tauri's async runtime and supports proper async/await.
+    pub async fn send<R>(&self, req: R) -> Result<R::Response, String>
     where
         R: CommRequest,
     {
-        let (tx_resp, rx_resp) = mpsc::channel();
+        let (tx_resp, rx_resp) = oneshot::channel();
 
         let envelope = CommRequestEnvelope {
             type_id: TypeId::of::<R>(),
@@ -39,23 +39,19 @@ impl CommRequestDispatcher {
             responder: tx_resp,
         };
 
-        self.tx.send(envelope).unwrap();
+        self.tx
+            .send(envelope)
+            .map_err(|_| "Failed to send request to camera thread".to_string())?;
 
-        rx_resp
-    }
+        let response = rx_resp
+            .await
+            .map_err(|_| "Camera thread did not respond".to_string())?;
 
-    pub fn send<R>(&self, req: R) -> JoinHandle<R::Response>
-    where
-        R: CommRequest,
-    {
-        let rx = self._send(req);
-        tauri::async_runtime::spawn_blocking(move || {
-            let response = rx.recv().expect("Channel has hung up");
-            let boxed = response
-                .downcast::<R::Response>()
-                .expect("Response type mismatch");
-            *boxed
-        })
+        let boxed = response
+            .downcast::<R::Response>()
+            .map_err(|_| "Response type mismatch".to_string())?;
+
+        Ok(*boxed)
     }
 }
 
