@@ -1,9 +1,15 @@
+use std::sync::{mpsc, OnceLock};
+
 use tauri::Manager;
 
-use crate::path::init_dirs;
+use crate::{camera::start_camera_thread, comm::CommRequestDispatcher, path::init_dirs};
 
+mod camera;
+mod comm;
 mod commands;
 mod path;
+
+pub static COMM: OnceLock<CommRequestDispatcher> = OnceLock::new();
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,6 +19,13 @@ pub fn run() {
         "Using MAIL_ADDRESS: {}",
         std::env::var("MAIL_ADDRESS").unwrap()
     );
+
+    let (tx, rx) = mpsc::channel();
+
+    let dispatcher = CommRequestDispatcher::new(tx);
+    let _ = COMM.set(dispatcher);
+
+    tauri::async_runtime::spawn_blocking(|| start_camera_thread(rx));
 
     tauri::Builder::default()
         .on_window_event(|_, event| match event {
