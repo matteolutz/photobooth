@@ -20,11 +20,14 @@ pub async fn send_mail(mail_address: String, photos: Vec<String>, strip_image: V
 
     println!("Building message");
 
-    let own_mail_address = std::env::var("MAIL_ADDRESS").unwrap();
-    let own_mail_password = std::env::var("MAIL_PASSWORD").unwrap();
+    let own_mail_address = std::env::var("PHOTOBOOTH_MAIL_ADDRESS").unwrap();
+    let own_mail_password = std::env::var("PHOTOBOOTH_MAIL_PASSWORD").unwrap();
 
-    let smtp_host = std::env::var("MAIL_SMTP_HOST").unwrap();
-    let smtp_port = std::env::var("MAIL_SMTP_PORT").unwrap().parse().unwrap();
+    let smtp_host = std::env::var("PHOTOBOOTH_MAIL_SMTP_HOST").unwrap();
+    let smtp_port = std::env::var("PHOTOBOOTH_MAIL_SMTP_PORT")
+        .unwrap()
+        .parse()
+        .unwrap();
 
     let mut message = MessageBuilder::new()
         .from(("KMG Fotobox", own_mail_address.as_str()))

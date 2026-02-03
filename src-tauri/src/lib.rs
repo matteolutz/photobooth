@@ -19,7 +19,7 @@ pub fn run() {
 
     println!(
         "Using MAIL_ADDRESS: {}",
-        std::env::var("MAIL_ADDRESS").unwrap()
+        std::env::var("PHOTOBOOTH_MAIL_ADDRESS").unwrap()
     );
 
     CameraRef::init()
