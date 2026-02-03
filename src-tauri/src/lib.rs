@@ -11,6 +11,8 @@ mod camera;
 mod commands;
 mod path;
 
+const ENABLE_LIVE_VIEW: bool = false;
+
 pub static CAMERA: LazyLock<Mutex<Option<CameraRef>>> = LazyLock::new(|| Mutex::new(None));
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,15 +24,11 @@ pub fn run() {
         std::env::var("PHOTOBOOTH_MAIL_ADDRESS").unwrap()
     );
 
-    CameraRef::init()
-        .and_then(|cam| {
-            let mut global_cam = CAMERA.try_lock().expect("Failed to lock");
-            *global_cam = Some(cam);
-            Some(())
-        })
-        .expect("Failed to initialize EDSDK");
-
-    tauri::async_runtime::spawn_blocking(camera_event_thread);
+    let cam = CameraRef::init(ENABLE_LIVE_VIEW).expect("Failed to initialize camera");
+    {
+        let mut global_cam = CAMERA.try_lock().expect("Failed to lock camera");
+        *global_cam = Some(cam);
+    }
 
     tauri::Builder::default()
         .on_window_event(|_, event| match event {
@@ -43,6 +41,11 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir()?;
 
             init_dirs(&app_data_dir)?;
+
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                camera_event_thread(app_handle, ENABLE_LIVE_VIEW)
+            });
 
             Ok(())
         })

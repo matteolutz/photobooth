@@ -1,50 +1,32 @@
-import { useEffect, useRef, useState } from "react";
-import { useAnimationLayer } from "../animation/context";
-import PhotoStrip from "./Result/PhotoStrip";
-import { toOptionalPhotos } from "../types/result";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { appDataDir, join } from "@tauri-apps/api/path";
+import { useEffect, useState } from "react";
+
+const EVF_FILE = "evf.jpeg";
 
 const Test = () => {
-  const { animateTo } = useAnimationLayer();
-
-  const [photos, setPhotos] = useState<string[]>([]);
-
-  const testPhoto = "02-02-2026 19-01-26.jpeg";
-  const testPhotoPath = useRef("");
+  const [image, setImage] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
+    const unlisten = (async () => {
       const appData = await appDataDir();
-      testPhotoPath.current = await join(appData, "camera", testPhoto);
+      const path = await join(appData, EVF_FILE);
+      const photoSrc = convertFileSrc(path);
+
+      return listen("evf-update", () => {
+        setImage(`${photoSrc}?${Date.now()}`);
+
+        // console.log("got evf update");
+      });
     })();
+
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, []);
 
-  const test = () => {
-    animateTo(
-      `photostrip-${photos.length}`,
-      {
-        top: window.innerWidth / 50,
-        left: window.innerHeight / 50,
-        width: 200,
-        height: 200,
-      },
-      <img
-        src={testPhotoPath.current}
-        className="photo-strip-img w-full h-auto object-cover"
-      />,
-      {
-        onDone: () => setPhotos([...photos, testPhoto]),
-      },
-    );
-  };
-
-  return (
-    <div>
-      <PhotoStrip photos={toOptionalPhotos(photos)} />
-
-      <button onClick={test}>test</button>
-    </div>
-  );
+  return image !== null ? <img src={image} alt="EVF" /> : <div>Loading...</div>;
 };
 
 export default Test;

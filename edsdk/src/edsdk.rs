@@ -1,10 +1,15 @@
 /// Rust bindings for Canon's EDSDK (v. 13.20.10)
 use std::ffi::CStr;
 
+use bitflags::bitflags;
+
 #[repr(u32)]
 #[derive(PartialEq, Eq, Debug)]
 pub enum EdsError {
     Ok = 0,
+
+    /// This error doesn't exist on the EDSDK but is used to indicate that no camera was found.
+    NoCameraFound = u32::MAX,
 }
 
 impl EdsError {
@@ -17,6 +22,16 @@ impl EdsError {
             Ok(())
         } else {
             Err(self)
+        }
+    }
+}
+
+impl From<EdsError> for Result<(), EdsError> {
+    fn from(value: EdsError) -> Self {
+        if value.is_ok() {
+            Ok(())
+        } else {
+            Err(value)
         }
     }
 }
@@ -45,6 +60,21 @@ pub enum EdsSaveTo {
     Both = Self::Camera as isize | Self::Host as isize,
 }
 
+bitflags! {
+    #[repr(transparent)]
+    pub struct EdsEvfOutputDevice : u32 {
+        const TFT = 1;
+        const PC = 2;
+        const PC_SMALL= 8;
+    }
+}
+
+impl Default for EdsEvfOutputDevice {
+    fn default() -> Self {
+        EdsEvfOutputDevice::TFT
+    }
+}
+
 pub type EdsVoid = std::os::raw::c_void;
 
 pub type EdsChar = std::os::raw::c_char;
@@ -58,6 +88,8 @@ pub type EdsCameraListRef = EdsBaseRef;
 pub type EdsStreamRef = EdsBaseRef;
 
 pub type EdsDirectoryItemRef = EdsBaseRef;
+
+pub type EdsEvfImageRef = EdsBaseRef;
 
 pub type EdsCameraCommand = u32;
 
@@ -187,6 +219,13 @@ extern "C" {
     pub fn EdsOpenSession(camera_ref: EdsCameraRef) -> EdsError;
     pub fn EdsCloseSession(camera_ref: EdsCameraRef) -> EdsError;
 
+    pub fn EdsGetPropertyData(
+        in_ref: EdsBaseRef,
+        property_id: EdsPropertyId,
+        param: i32,
+        size: u32,
+        out_data: *mut EdsVoid,
+    ) -> EdsError;
     pub fn EdsSetPropertyData(
         in_ref: EdsBaseRef,
         property_id: EdsPropertyId,
@@ -221,6 +260,12 @@ extern "C" {
         out_stream: *mut EdsStreamRef,
     ) -> EdsError;
 
+    pub fn EdsCreateMemoryStreamFromPointer(
+        in_user_buffer: *mut EdsVoid,
+        in_buffer_size: u64,
+        out_stream: *mut EdsStreamRef,
+    ) -> EdsError;
+
     pub fn EdsDownload(
         in_dir_item_ref: EdsDirectoryItemRef,
         in_read_size: u64,
@@ -229,4 +274,13 @@ extern "C" {
     pub fn EdsDownloadComplete(in_dir_item_ref: EdsDirectoryItemRef) -> EdsError;
 
     pub fn EdsSetCapacity(camera_ref: EdsCameraRef, capacity: EdsCapacity) -> EdsError;
+
+    pub fn EdsCreateEvfImageRef(
+        in_stream: EdsStreamRef,
+        out_evf_image_ref: *mut EdsEvfImageRef,
+    ) -> EdsError;
+    pub fn EdsDownloadEvfImage(
+        in_camera: EdsCameraRef,
+        in_evf_image_ref: EdsEvfImageRef,
+    ) -> EdsError;
 }
