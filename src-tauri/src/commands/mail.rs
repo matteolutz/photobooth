@@ -34,7 +34,7 @@ pub async fn send_mail(mail_address: String, photos: Vec<String>, strip_image: V
         .to(mail_address)
         .subject("KMG Fotobox")
         .text_body(format!(
-            "Anbei die Fotos, die ihr am {} gemacht habt",
+            "Anbei die Fotos, die Du am {} mit der KMG Fotobox gemacht hast",
             now.format("%d.%m.%Y um %H:%M")
         ))
         .attachment("image/png", "Foto-Streifen.png", strip_image);
