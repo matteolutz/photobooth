@@ -199,6 +199,7 @@ pub enum EdsImageQuality {
 }
 
 #[cfg_attr(target_os = "macos", link(name = "EDSDK", kind = "framework"))]
+#[cfg_attr(target_os = "windows", link(name = "EDSDK"))]
 extern "C" {
     pub fn EdsInitializeSDK() -> EdsError;
     pub fn EdsTerminateSDK() -> EdsError;

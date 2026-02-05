@@ -1,6 +1,6 @@
 use std::{
     ffi::CString,
-    os::unix::ffi::OsStrExt,
+    // os::unix::ffi::OsStrExt,
     ptr::null_mut,
     sync::{LazyLock, Mutex},
     thread,
@@ -136,7 +136,7 @@ impl CameraRef {
 
         // open file stream
         let mut stream = null_mut() as EdsStreamRef;
-        let file_name = CString::new(EVF_IMAGE.get().unwrap().as_os_str().as_bytes()).unwrap();
+        let file_name = CString::new(EVF_IMAGE.get().unwrap().as_os_str().as_encoded_bytes()).unwrap();
         unsafe {
             EdsCreateFileStream(
                 file_name.as_ptr(),
